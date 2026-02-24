@@ -4,40 +4,62 @@ import dotenv from "dotenv";
 import axios from "axios";
 
 dotenv.config();
-const app = express();
 
+const app = express();
 app.use(cors());
 app.use(express.json());
 
-const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
+const PORT = 5000;
 
-// POST /chat route
-app.post("/chat", async (req, res) => {
-  try {
-    const { message } = req.body;
-    console.log("Received message:", message);
+let conversation = [
+  {
+    role: "system",
+    content: "You are a helpful AI assistant."
+  }
+];
 
-    // OpenRouter API call
-    const https = require("https");
-https.get("https://api.openrouter.ai/v1/chat/completions", (res) => {
-  console.log(res.statusCode);
-  res.on("data", d => process.stdout.write(d));
+app.get("/", (req, res) => {
+  res.send("Backend is working");
 });
 
-    const reply = response.data.choices[0].message.content;
-    console.log("AI reply:", reply);
+app.post("/chat", async (req, res) => {
+  const { message } = req.body;
 
-    res.json({ reply });
+  try {
+    conversation.push({
+      role: "user",
+      content: message
+    });
+
+    const response = await axios.post(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        model: "openai/gpt-4o-mini",
+        messages: conversation
+      },
+      {
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    const aiMessage = response.data.choices[0].message;
+
+    conversation.push(aiMessage);
+
+    res.json({ reply: aiMessage.content });
+
   } catch (error) {
-    console.error("Backend error:", error.response?.data || error.message);
-    res.status(500).json({ error: error.message || "Something went wrong" });
+    console.error(error.response?.data || error.message);
+    res.status(500).json({ error: "AI request failed" });
   }
 });
 
-// Optional GET route to test server
-app.get("/", (req, res) => {
-  res.send("Backend running ✅");
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
 });
 
-// Start backend on port 5000
-app.listen(5000, () => console.log("Server running on port 5000"));
+console.log("API KEY:", process.env.OPENROUTER_API_KEY);
+dotenv.config();
